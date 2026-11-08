@@ -10,153 +10,76 @@ import streamlit as st
 
 BASE_DIR = Path(__file__).resolve().parent
 API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
+LOG_FILE = BASE_DIR / "api.log"
 
 st.set_page_config(page_title="Adult Income Predictor", page_icon="💰", layout="wide")
 
 
+# ---------- API ko background mein start karna ----------
 @st.cache_resource
-def ensure_api():
-    """API pehle se chal rahi ho to dobara start nahi karta."""
+def start_api_process():
+    """API process sirf ek baar start hota hai."""
     try:
         requests.get(f"{API_URL}/health", timeout=2)
-        return True
+        return None  # API pehle se chal rahi hai (local run)
     except Exception:
         pass
-    subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "uvicorn",
-            "api:app",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            "8000",
-        ],
-        cwd=str(BASE_DIR),
+    log = open(LOG_FILE, "w")
+    return subprocess.Popen(
+        [sys.executable, "-m", "uvicorn", "api:app",
+         "--host", "127.0.0.1", "--port", "8000"],
+        cwd=str(BASE_DIR), stdout=log, stderr=subprocess.STDOUT,
     )
-    for _ in range(40):
-        time.sleep(1)
+
+
+def wait_for_api(proc, timeout=120):
+    for _ in range(timeout):
         try:
             requests.get(f"{API_URL}/health", timeout=2)
             return True
         except Exception:
-            pass
+            if proc is not None and proc.poll() is not None:
+                return False  # process crash ho gaya
+            time.sleep(1)
     return False
 
 
-with st.spinner("Starting API..."):
-    ensure_api()
+proc = start_api_process()
+with st.spinner("Starting API (pehli baar 1 minute tak lag sakta hai)..."):
+    api_ok = wait_for_api(proc)
 
+if not api_ok:
+    start_api_process.clear()  # agli refresh par dobara try karega
+    st.error("API start nahi ho saki. Neeche uska log hai:")
+    if LOG_FILE.exists():
+        st.code(LOG_FILE.read_text()[-3000:])
+    st.stop()
+
+# ---------- Dropdown values ----------
 EDUCATION = {
-    "Preschool": 1,
-    "1st-4th": 2,
-    "5th-6th": 3,
-    "7th-8th": 4,
-    "9th": 5,
-    "10th": 6,
-    "11th": 7,
-    "12th": 8,
-    "HS-grad": 9,
-    "Some-college": 10,
-    "Assoc-voc": 11,
-    "Assoc-acdm": 12,
-    "Bachelors": 13,
-    "Masters": 14,
-    "Prof-school": 15,
-    "Doctorate": 16,
+    "Preschool": 1, "1st-4th": 2, "5th-6th": 3, "7th-8th": 4, "9th": 5,
+    "10th": 6, "11th": 7, "12th": 8, "HS-grad": 9, "Some-college": 10,
+    "Assoc-voc": 11, "Assoc-acdm": 12, "Bachelors": 13, "Masters": 14,
+    "Prof-school": 15, "Doctorate": 16,
 }
-WORKCLASS = [
-    "Private",
-    "Self-emp-not-inc",
-    "Self-emp-inc",
-    "Federal-gov",
-    "Local-gov",
-    "State-gov",
-    "Without-pay",
-    "Never-worked",
-    "Unknown",
-]
-MARITAL = [
-    "Married-civ-spouse",
-    "Divorced",
-    "Never-married",
-    "Separated",
-    "Widowed",
-    "Married-spouse-absent",
-    "Married-AF-spouse",
-]
-OCCUPATION = [
-    "Exec-managerial",
-    "Prof-specialty",
-    "Tech-support",
-    "Sales",
-    "Craft-repair",
-    "Adm-clerical",
-    "Other-service",
-    "Machine-op-inspct",
-    "Transport-moving",
-    "Handlers-cleaners",
-    "Farming-fishing",
-    "Protective-serv",
-    "Priv-house-serv",
-    "Armed-Forces",
-    "Unknown",
-]
-RELATIONSHIP = [
-    "Husband",
-    "Wife",
-    "Own-child",
-    "Not-in-family",
-    "Other-relative",
-    "Unmarried",
-]
+WORKCLASS = ["Private", "Self-emp-not-inc", "Self-emp-inc", "Federal-gov",
+             "Local-gov", "State-gov", "Without-pay", "Never-worked", "Unknown"]
+MARITAL = ["Married-civ-spouse", "Divorced", "Never-married", "Separated",
+           "Widowed", "Married-spouse-absent", "Married-AF-spouse"]
+OCCUPATION = ["Exec-managerial", "Prof-specialty", "Tech-support", "Sales",
+              "Craft-repair", "Adm-clerical", "Other-service", "Machine-op-inspct",
+              "Transport-moving", "Handlers-cleaners", "Farming-fishing",
+              "Protective-serv", "Priv-house-serv", "Armed-Forces", "Unknown"]
+RELATIONSHIP = ["Husband", "Wife", "Own-child", "Not-in-family", "Other-relative", "Unmarried"]
 RACE = ["White", "Black", "Asian-Pac-Islander", "Amer-Indian-Eskimo", "Other"]
 SEX = ["Male", "Female"]
-COUNTRY = [
-    "United-States",
-    "Mexico",
-    "Philippines",
-    "Germany",
-    "Canada",
-    "Puerto-Rico",
-    "El-Salvador",
-    "India",
-    "Cuba",
-    "England",
-    "Jamaica",
-    "South",
-    "China",
-    "Italy",
-    "Dominican-Republic",
-    "Vietnam",
-    "Guatemala",
-    "Japan",
-    "Poland",
-    "Columbia",
-    "Taiwan",
-    "Haiti",
-    "Iran",
-    "Portugal",
-    "Nicaragua",
-    "Peru",
-    "Greece",
-    "France",
-    "Ecuador",
-    "Ireland",
-    "Hong",
-    "Cambodia",
-    "Trinadad&Tobago",
-    "Thailand",
-    "Laos",
-    "Yugoslavia",
-    "Outlying-US(Guam-USVI-etc)",
-    "Honduras",
-    "Hungary",
-    "Scotland",
-    "Holand-Netherlands",
-    "Unknown",
-]
+COUNTRY = ["United-States", "Mexico", "Philippines", "Germany", "Canada", "Puerto-Rico",
+           "El-Salvador", "India", "Cuba", "England", "Jamaica", "South", "China", "Italy",
+           "Dominican-Republic", "Vietnam", "Guatemala", "Japan", "Poland", "Columbia",
+           "Taiwan", "Haiti", "Iran", "Portugal", "Nicaragua", "Peru", "Greece", "France",
+           "Ecuador", "Ireland", "Hong", "Cambodia", "Trinadad&Tobago", "Thailand", "Laos",
+           "Yugoslavia", "Outlying-US(Guam-USVI-etc)", "Honduras", "Hungary", "Scotland",
+           "Holand-Netherlands", "Unknown"]
 
 
 def none_if_unknown(v):
@@ -188,13 +111,14 @@ try:
 
     st.subheader("Top 5 most important features")
     fi = pd.DataFrame(m["top_features"]).rename(
-        columns={"feature": "Feature", "importance": "Importance"}
-    )
+        columns={"feature": "Feature", "importance": "Importance"})
     left, right = st.columns([1, 1])
     left.dataframe(fi, hide_index=True, use_container_width=True)
     right.bar_chart(fi.set_index("Feature")["Importance"])
 except Exception as e:
-    st.error(f"API se connect nahi ho saka ({API_URL}). Page refresh karo. Detail: {e}")
+    st.error(f"API se data nahi mil saka ({API_URL}). Page refresh karo. Detail: {e}")
+    if LOG_FILE.exists():
+        st.code(LOG_FILE.read_text()[-3000:])
     st.stop()
 
 # ---------- Input form ----------
