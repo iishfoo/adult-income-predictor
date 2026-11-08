@@ -1,0 +1,27 @@
+{
+  "model": "TPOT (XGBoost)",
+  "accuracy": 0.8638,
+  "precision": 0.7775,
+  "recall": 0.6084,
+  "f1": 0.6826,
+  "roc_auc": 0.9165,
+  "input_columns": [
+    "age",
+    "workclass",
+    "education_num",
+    "marital_status",
+    "occupation",
+    "relationship",
+    "race",
+    "sex",
+    "capital_gain",
+    "capital_loss",
+    "hours_per_week",
+    "native_country",
+    "net_capital",
+    "has_capital_gain",
+    "has_capital_loss",
+    "is_full_time"
+  ],
+  "needs_tpot": false
+}
